@@ -16,9 +16,23 @@ def get_last_ticket_for_user(engine, tg_id):
         query = session.query(SoldTickets).filter(SoldTickets.solder_tg_id == tg_id).all()
         return query[-1]
 
+
 def change_status_for_order(engine, id, status):
     with Session(engine) as session:
         query = update(SoldTickets).where(SoldTickets.id
                                                == id).values(status=status)
         session.execute(query)
         session.commit()
+
+
+def get_count_of_sold_for_promo(engine, text_promo):
+    with Session(engine) as session:
+        query = session.query(SoldTickets).filter(SoldTickets.promo_code_name == text_promo).all()
+        return len(query)
+
+
+def get_count_of_sold_for_user(engine, tg_id):
+    with Session(engine) as session:
+        query = session.query(SoldTickets).filter(SoldTickets.solder_tg_id == tg_id
+                                                  and SoldTickets.status == sold).all()
+        return len(query)

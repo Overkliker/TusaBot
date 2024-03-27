@@ -11,6 +11,9 @@ from aiogram.filters import Command, StateFilter
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.orm import Session
 
+from dto.UserAdmin import UserAdmin
+from dto.UserPromouter import UserPromouter
+from dto.UserTutor import UserTutor
 from states import *
 from text import *
 from sqlalchemy import create_engine
@@ -51,23 +54,43 @@ async def start_handler(message: Message, state: FSMContext):
 
     else:
         current_user = user_in_db[0]
+        await state.clear()
 
         match current_user.user_role:
             case 1:
                 pass
             case 2:
-                pass
+                builder = create_kb_admin_profile(user_id)
+                txt = auth_admin_text1 + current_user.fio
+                await message.answer(text="Рады снова видеть тебя")
+                await message.answer(text=txt, reply_markup=builder.as_markup())
 
             case 3:
-                pass
+                builder = create_kb_tutor_profile(user_id)
+                sold_kb = new_sold()
+                txt = auth_admin_text1 + current_user.fio
+                await message.answer(text="Рады снова видеть тебя", reply_markup=sold_kb)
+                await message.answer(text=txt, reply_markup=builder.as_markup())
 
             case 4:
-                await state.clear()
                 builder = create_kb_promouter_profile(user_id)
                 sold_kb = new_sold()
                 txt = auth_admin_text1 + current_user.fio
                 await message.answer(text="Рады снова видеть тебя", reply_markup=sold_kb)
                 await message.answer(text=txt, reply_markup=builder.as_markup())
+
+
+# Профили
+@router.callback_query(F.data.startswith('profile_admin'))
+async def profile_admin(callback: types.CallbackQuery):
+    tg_id = int(callback.data.replace('profile_admin', ''))
+
+    user_data = UserAdmin(tg_id, engine)
+
+    text = generate_admin_text(user_data.user, user_data.promo_text)
+    back = create_back()
+    await callback.bot.send_message(chat_id=callback.message.chat.id,
+                                    text=text, reply_markup=back.as_markup())
 
 
 @router.callback_query(F.data.startswith('profile_promouter'))
@@ -79,11 +102,26 @@ async def profile_promouter(callback_query: CallbackQuery):
     """
     tg_id = int(callback_query.data.replace('profile_promouter', ''))
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future = executor.submit(get_user_by_telegram_id, engine, tg_id)
-        user = future.result()[0]
+    user_data = UserPromouter(tg_id, engine)
 
-    text = generate_promouter_text(user)
+    text = generate_promouter_text(user_data.user, user_data.promo_text)
+    back = create_back()
+    await callback_query.bot.send_message(chat_id=callback_query.message.chat.id,
+                                          text=text, reply_markup=back.as_markup())
+
+
+@router.callback_query(F.data.startswith('profile_tutor'))
+async def profile_tutor(callback_query: CallbackQuery):
+    """
+    Рендер профиля куратора
+    :param callback_query:
+    :return:
+    """
+    tg_id = int(callback_query.data.replace('profile_tutor', ''))
+
+    user_data = UserTutor(tg_id, engine)
+
+    text = generate_tutor_text(user_data.user, user_data.sold_tickets, user_data.promo_text)
     back = create_back()
     await callback_query.bot.send_message(chat_id=callback_query.message.chat.id,
                                           text=text, reply_markup=back.as_markup())
@@ -100,7 +138,7 @@ async def clear_message(callback_query: CallbackQuery):
     await callback_query.bot.delete_message(chat_id=chat_id, message_id=callback_query.message.message_id)
 
 
-#Регистрация
+# Регистрация
 @router.message(StepsRegisterForm.GET_NAME)
 async def get_name(message: Message, state: FSMContext):
     name = message.text
@@ -177,7 +215,7 @@ async def get_approval2(callback: CallbackQuery):
     await callback.bot.send_message(user_id, "Ваша заявка отклонена. 😔")
 
 
-#Сдача билета
+# Сдача билета
 @router.message(StateFilter(None), F.text == 'Сдать билет')
 async def get_new_sold(message: Message, state: FSMContext):
     """
@@ -191,7 +229,7 @@ async def get_new_sold(message: Message, state: FSMContext):
         role = executor.submit(get_user_by_telegram_id, engine, tg_id)
         role_res = role.result()[0].user_role
 
-    if role_res == 4:
+    if role_res == 4 or role_res == 3:
         get_kb = kb_types()
         await message.bot.send_message(chat_id=message.chat.id, text="Выберите тип билета", reply_markup=get_kb)
         await state.set_state(PassTicketForm.GET_TYPE)
@@ -199,7 +237,6 @@ async def get_new_sold(message: Message, state: FSMContext):
     else:
         await message.answer("Вы не промоутер")
         await state.clear()
-
 
 
 @router.message(PassTicketForm.GET_TYPE)
@@ -244,7 +281,7 @@ async def get_ticket_photo(message: Message, state: FSMContext):
             user = future.result()[0]
 
             if user.user_role == promouter:
-                future = executor.submit(get_tutor_by_promouter_id, engine, user.telegram_id)
+                future = executor.submit(get_tutor_by_promouter_id, engine, user.id)
                 tutor_id = future.result().tutor_id
 
                 future = executor.submit(get_promo_by_tutor_id, engine, tutor_id)
@@ -275,7 +312,7 @@ async def get_ticket_photo(message: Message, state: FSMContext):
 
         last_ticket_for_user = get_last_ticket_for_user(engine, tg_id).id
         if user.user_role == tutor:
-            random_tutor = get_random_tutor(engine).telegram_id
+            random_tutor = get_random_tutor(engine, tg_id).telegram_id
             in_kb = create_sold_orders_kb(tg_id, last_ticket_for_user)
             await message.bot.send_photo(chat_id=random_tutor,
                                          photo=FSInputFile(file_name),
@@ -296,20 +333,50 @@ async def get_ticket_photo(message: Message, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith('approve_request_sold'))
-async def get_approval1(callback: CallbackQuery):
+async def get_approval_sold_approve(callback: CallbackQuery):
     user_and_ticket = callback.data.replace('approve_request_sold', '').split('_')
     set_status = await change_status_to_sold(engine, user_and_ticket[-1], sold)
     if set_status:
+        await callback.bot.delete_message(chat_id=callback.message.chat.id,
+                                          message_id=callback.message.message_id)
         await callback.bot.send_message(user_and_ticket[0], "Ваша продажа одобрена! 🎉")
     else:
+        await callback.bot.delete_message(chat_id=callback.message.chat.id,
+                                          message_id=callback.message.message_id)
         await callback.bot.send_message(callback.from_user.id, "Что-то пошло не так...")
 
 
 @router.callback_query(F.data.startswith('reject_request_sold'))
-async def get_approval2(callback: CallbackQuery):
+async def get_approval_sold_reject(callback: CallbackQuery):
     user_and_ticket = callback.data.replace('reject_request_sold', '').split('_')
     set_status = await change_status_to_sold(engine, user_and_ticket[-1], cancelled)
     if set_status:
+        await callback.bot.delete_message(chat_id=callback.message.chat.id,
+                                          message_id=callback.message.message_id)
         await callback.bot.send_message(user_and_ticket[0], "Ваша продажа отклонена. 😔")
     else:
+        await callback.bot.delete_message(chat_id=callback.message.chat.id,
+                                          message_id=callback.message.message_id)
         await callback.bot.send_message(callback.from_user.id, "Что-то пошло не так...")
+
+
+# Статистика по промокодам
+
+@router.callback_query(F.data.startswith('promo_state'))
+async def get_promo_state(callback: CallbackQuery):
+    state_promo = await create_text_promo_state(engine)
+    kb_back = create_back()
+    await callback.bot.send_message(chat_id=callback.message.chat.id,
+                                    text=state_promo,
+                                    reply_markup=kb_back.as_markup())
+
+
+# Статистика по пользователям
+@router.callback_query(F.data.startswith('solt'))
+async def get_promo_state(callback: CallbackQuery):
+    state_users = await create_text_users_state(engine)
+    kb_back = create_back()
+    await callback.bot.send_message(chat_id=callback.message.chat.id,
+                                    text=state_users,
+                                    reply_markup=kb_back.as_markup())
+

@@ -31,14 +31,22 @@ def get_user_by_id(engine, id):
         query = session.query(Users).filter(Users.id == id).first()
         return query
 
+
 def get_superuser(engine):
     with Session(engine) as session:
         query = session.query(Users).filter(Users.user_role == admin).first()
         return query
 
 
-def get_random_tutor(engine):
+def get_random_tutor(engine, tg_id):
     with Session(engine) as session:
-        query = session.query(Users).filter(Users.user_role == tutor).all()
+        query = session.query(Users).filter(Users.user_role == tutor and Users.telegram_id != tg_id).all()
+        random_tutor = random.choice(query)
+        return random_tutor
+
+
+def get_tutors_and_promouters(engine):
+    with Session(engine) as session:
+        query = session.query(Users).filter(Users.user_role == tutor or Users.user_role == promouter).all()
         random_tutor = random.choice(query)
         return random_tutor

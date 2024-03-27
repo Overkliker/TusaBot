@@ -7,6 +7,10 @@ from CRUD.tutor_promouter import *
 from CRUD.orders_on_register import *
 from CRUD.manager_tutor import *
 from CRUD.manager_promo import *
+from CRUD.sold_tickets import *
+import pandas as pd
+import matplotlib.pyplot as plt
+from pandas.plotting import table
 
 
 async def change_status_to_sold(engine, sold_ticket_id, status):
@@ -58,8 +62,21 @@ async def new_promouter_for_tutor(user_id, promocode_id, engine):
         print(ex)
 
 
-def generate_promouter_text(user):
-    text = f"Профиль \n Ваш ID: {user.telegram_id} \n Проданные билеты: {user.ticket_count} \n"
+def generate_promouter_text(user, promo_text):
+    text = (f"Профиль \n Ваш ID: {user.telegram_id} \nВаш промокод: {promo_text}"
+            f" \n Проданные билеты: {user.ticket_count} \n")
+    return text
+
+
+def generate_tutor_text(user, count_for_promo, promo_text):
+    text = (f"Профиль \n\nВаш ID: {user.telegram_id} \nВаш промокод: {promo_text}"
+            f" \nПроданные билеты: {user.ticket_count}"
+            f" \nПродаж по промокоду: {count_for_promo}")
+    return text
+
+
+def generate_admin_text(user, promo_text):
+    text = f"Профиль \n\nВаш ID: {user.telegram_id} \nВаш промокод: {promo_text}"
     return text
 
 
@@ -72,3 +89,43 @@ async def new_tutor_for_manager(user_id, promocode_id, engine):
 
     except Exception as ex:
         print(ex)
+
+
+async def create_text_promo_state(engine):
+    try:
+        state_text = ''
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(get_tutors_promocodes, engine)
+            promo_codes = future.result()
+
+        for promo_code in promo_codes:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(get_count_of_sold_for_promo, engine, promo_code.text_promo)
+                count = future.result()
+
+                state_text += f"{promo_code.text_promo} --- {count}"
+
+        return state_text
+
+    except Exception as ex:
+        return "Пока что статистики нету"
+
+
+async def create_text_users_state(engine):
+    try:
+        state_text = ''
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(get_tutors_and_promouters, engine)
+            users = future.result()
+
+        for user in users:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(get_count_of_sold_for_user, engine, user.telegram_id)
+                count = future.result()
+
+                state_text += f"{user.fio} --- {user.telegram_id} --- {count}"
+
+        return state_text
+
+    except Exception as ex:
+        return "Пока что статистики нету"

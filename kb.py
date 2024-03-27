@@ -37,9 +37,9 @@ def create_sold_orders_kb(telegram_id: int, order_id: int) -> InlineKeyboardBuil
 
     return builder
 
+
 def create_kb_promouter_profile(telegram_id: int) -> InlineKeyboardBuilder:
     profile = 'profile_promouter' + str(telegram_id)
-    promo_codes = 'promo_codes' + str(telegram_id)
     materials = 'materials' + str(telegram_id)
 
     builder = InlineKeyboardBuilder()
@@ -49,13 +49,68 @@ def create_kb_promouter_profile(telegram_id: int) -> InlineKeyboardBuilder:
     )
 
     builder.row(InlineKeyboardButton(
-        text="\U0001F3F7 Промокоды",
-        callback_data=promo_codes)
+        text="\U0001F4DA Материалы",
+        callback_data=materials)
+    )
+
+    return builder
+
+
+def create_kb_tutor_profile(telegram_id: int) -> InlineKeyboardBuilder:
+    profile = 'profile_tutor' + str(telegram_id)
+    materials = 'materials' + str(telegram_id)
+
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(
+        text="\U0001F935 Профиль",
+        callback_data=profile)
     )
 
     builder.row(InlineKeyboardButton(
         text="\U0001F4DA Материалы",
         callback_data=materials)
+    )
+
+    return builder
+
+
+def create_kb_admin_profile(telegram_id: int) -> InlineKeyboardBuilder:
+    profile = 'profile_admin' + str(telegram_id)
+    materials = 'materials' + str(telegram_id)
+    solt = 'solt' + str(telegram_id)
+    promo_state = 'promo_state' + str(telegram_id)
+    crud_promo = 'crud_promo' + str(telegram_id)
+    crud_crews = 'crud_crews' + str(telegram_id)
+
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(
+        text="\U0001F935 Профиль",
+        callback_data=profile)
+    )
+
+    builder.add(InlineKeyboardButton(
+        text="\U0001F4DA Материалы",
+        callback_data=materials)
+    )
+
+    builder.row(InlineKeyboardButton(
+        text="Продажи",
+        callback_data=solt)
+    )
+
+    builder.row(InlineKeyboardButton(
+        text="Статистика по промокодам",
+        callback_data=promo_state)
+    )
+
+    builder.row(InlineKeyboardButton(
+        text="Промокоды",
+        callback_data=crud_promo)
+    )
+
+    builder.row(InlineKeyboardButton(
+        text="Составы",
+        callback_data=crud_crews)
     )
 
     return builder
